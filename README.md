@@ -72,6 +72,7 @@ CloudVolume depends on several PyPI packages which are Cython bindings for C++. 
 | skeleton_viewer | `skeleton.viewer()` GUI                 | matplotlib            |
 | all_viewers     | All viewers now and in the future.      | vtk, matplotlib       |
 | dask            | Supports converting to/from dask arrays | dask\[array\]         |
+| simdjson        | Faster spatial index queries            | pysimdjson            |
 | em_codecs       | Image codecs: JPEG, JPEG-XL, and PNG    | imagecodecs, simplejpeg, pyspng-seunglab |
 | seg_codecs      | Segmentation: compressed-segmentation, compresso, crackle | compressed-segmentation, compresso, crackle-codec         |
 | fp_codecs       | Floating point: fpzip, zfpc             | fpzip, zfpc           |

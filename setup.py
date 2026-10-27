@@ -68,6 +68,7 @@ setuptools.setup(
       "pytest", "pytest-cov", "codecov", 
       "requests_mock", "scipy", "zarr" 
     ] + ZARR_CODECS,
+    "simdjson": [ "pysimdjson>=3.1.1" ],
     "psql": [ "psycopg2" ],
     "mysql": [ "mysql-connector-python" ],
     "all_sql": [ "psycopg2", "mysql-connector-python" ],

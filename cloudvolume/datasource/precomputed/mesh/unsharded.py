@@ -2,7 +2,7 @@ from typing import Union, Iterable, Optional
 
 from collections import defaultdict
 import itertools
-import simdjson
+from .... import fastjson
 import re
 import os
 
@@ -79,7 +79,7 @@ class UnshardedLegacyPrecomputedMeshSource(object):
           raise ValueError(f"manifest is missing for {filename}")
 
       content = content.decode('utf8')
-      content = simdjson.loads(content)
+      content = fastjson.loads(content)
       contents[segid] = content['fragments']
 
     return contents

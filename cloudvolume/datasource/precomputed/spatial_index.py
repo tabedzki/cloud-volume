@@ -700,9 +700,9 @@ class SpatialIndex(object):
 
     Returns: Bbox in physical coordinates
     """
-    import simdjson
+    from ...fastjson import SelectiveParser
     locations = defaultdict(list)
-    parser = simdjson.Parser()
+    parser = SelectiveParser()
 
     label = str(label)
     bbox = None
@@ -735,28 +735,16 @@ class SpatialIndex(object):
 
     for index_files in iterator:
       for filename, content in index_files.items():
+        label_bbox = parser.get_int64_array(content, label)
+        if label_bbox is None:
+          continue
 
-        # Need to delete segid_bbox_dict to avoid this error:
-        # RuntimeError: Tried to re-use a parser while simdjson.Object 
-        #   and/or simdjson.Array objects still exist referencing the 
-        #   old parser.
-        segid_bbox_dict = parser.parse(content)
-        filename = os.path.basename(filename)
-
-        if label not in segid_bbox_dict:
-          del segid_bbox_dict
-          continue 
-
-        current_bbox = Bbox.from_list(
-          np.frombuffer(segid_bbox_dict[label].as_buffer(of_type="i"), dtype=np.int64)
-        )
+        current_bbox = Bbox.from_list(label_bbox)
 
         if bbox is None:
           bbox = current_bbox
         else:
           bbox = Bbox.expand(bbox, current_bbox)
-
-        del segid_bbox_dict
 
     return bbox
 
@@ -779,15 +767,15 @@ class SpatialIndex(object):
     return self.file_locations_per_label_json(labels, allow_missing)
   
   def file_locations_per_label_json(self, labels, allow_missing=False):
-    import simdjson
+    from ...fastjson import SelectiveParser
     locations = defaultdict(list)
-    parser = simdjson.Parser()
+    parser = SelectiveParser()
     if labels is not None:
       labels = set(toiter(labels))
 
     for index_files in self.fetch_all_index_files():
       for filename, content in index_files.items():
-        index_labels = set(parser.parse(content).keys())
+        index_labels = set(parser.keys(content))
         filename = os.path.basename(filename)
 
         if labels is None:
@@ -844,7 +832,7 @@ class SpatialIndex(object):
 
     Returns: iterable
     """
-    import simdjson
+    from ...fastjson import SelectiveParser, loads
     bbox = Bbox.create(bbox, context=self.physical_bounds, autocrop=True)
     original_bbox = bbox.clone()
     bbox = bbox.expand_to_chunk_size(self.chunk_size.astype(self.physical_bounds.dtype), offset=self.physical_bounds.minpt)
@@ -894,7 +882,7 @@ class SpatialIndex(object):
     for index_files_subset in tqdm(sip(index_files, 10000), total=num_blocks, desc="Block", disable=((not self.config.progress) or (num_blocks == 1))):
       results = self.fetch_index_files(index_files_subset)
 
-      parser = simdjson.Parser()
+      parser = SelectiveParser()
       for filename, content in tqdm(results.items(), desc="Decoding Labels", disable=(not self.config.progress)):
         if content is None:
           if allow_missing:
@@ -909,10 +897,10 @@ class SpatialIndex(object):
         # entire datasets, which is contemplated
         # for shard generation.
         if fast_path:
-          res = parser.parse(content).keys()
+          res = parser.keys(content)
           labels.update( (int(label) for label in res ) ) # fast path: 16% CPU
         else:
-          res = simdjson.loads(content)
+          res = loads(content)
           for label, label_bbx in res.items():
             label = int(label)
             label_bbx = Bbox.from_list(label_bbx)
@@ -945,7 +933,7 @@ def thread_safe_insert(path, lock, evt, qu, progress, db_type):
   print('finished', threading.current_thread().ident)
 
 def insert_index_files(index_files, lock, conn, cur, progress, db_type):
-  import simdjson
+  from ...fastjson import SelectiveParser
   # handle SQLite vs MySQL syntax quirks
   if db_type in (DbType.MYSQL, DbType.POSTGRES):
     BIND = '%s'
@@ -980,7 +968,7 @@ def insert_index_files(index_files, lock, conn, cur, progress, db_type):
     for fname, row_id in cur.fetchall() 
   }
 
-  parser = simdjson.Parser()
+  parser = SelectiveParser()
 
   if db_type == DbType.POSTGRES:
     # Vectorized path: build flat numpy arrays, then binary COPY.
@@ -990,7 +978,7 @@ def insert_index_files(index_files, lock, conn, cur, progress, db_type):
     for filename, content in index_files.items():
       if content is None:
         continue
-      index_labels = parser.parse(content).keys()
+      index_labels = parser.keys(content)
       filename = os.path.basename(filename)
       fid = filename_id_map[filename]
       chunk_labels = np.array([int(label) for label in index_labels], dtype=np.int64)
@@ -1033,7 +1021,7 @@ def insert_index_files(index_files, lock, conn, cur, progress, db_type):
     for filename, content in index_files.items():
       if content is None:
         continue
-      index_labels = parser.parse(content).keys()
+      index_labels = parser.keys(content)
       filename = os.path.basename(filename)
       fid = filename_id_map[filename]
       all_values.extend(( (int(label), fid) for label in index_labels ))
